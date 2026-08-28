@@ -1,6 +1,7 @@
 import { config } from "@/lib/config";
 import { logger } from "@/lib/logger";
 import { getCache } from "@/lib/cache";
+import { fetchOffImageUrl } from "@/lib/external/off-image";
 import { primaryAdapter } from "./primary";
 import { googleAdapter } from "./google";
 import { barcodeListAdapter } from "./barcode-list";
@@ -155,7 +156,7 @@ export async function lookupProductByBarcode(
         }
       }
     }
-    await finalize(product, barcode, cacheKey, mergedFrom, start);
+    await finalize(product, barcode, cacheKey, mergedFrom, start, !options.adapters);
     return outcome(product, mergedFrom, false);
   }
 
@@ -172,7 +173,7 @@ export async function lookupProductByBarcode(
     const result = await runAdapterSafely(key, () => adapter(barcode, ctx), barcode);
     if (result && validateLookupResult(result, barcode).valid) {
       product = result;
-      await finalize(product, barcode, cacheKey, [], start);
+      await finalize(product, barcode, cacheKey, [], start, !options.adapters);
       return outcome(product, [], false);
     }
   }
@@ -186,7 +187,7 @@ export async function lookupProductByBarcode(
     );
     if (result && validateLookupResult(result, barcode).valid) {
       product = result;
-      await finalize(product, barcode, cacheKey, [], start);
+      await finalize(product, barcode, cacheKey, [], start, !options.adapters);
       return outcome(product, [], false);
     }
   }
@@ -210,7 +211,21 @@ async function finalize(
   cacheKey: string,
   mergedFrom: string[],
   start: number,
+  offEnrich = true,
 ): Promise<void> {
+  // Open Food Facts loop: when the product has no image, pull one from OFF so
+  // the frontend always has art. Mirrors the analysis / alternatives path and
+  // is best-effort (decorative) — never breaks the lookup. Skipped when tests
+  // inject adapters so unit runs stay hermetic.
+  if (offEnrich && product.found && !product.imageUrl) {
+    const imageUrl = await fetchOffImageUrl(barcode);
+    if (imageUrl) {
+      product.imageUrl = imageUrl;
+      if (!mergedFrom.includes("openfoodfacts")) mergedFrom.push("openfoodfacts");
+      logger.info("product_lookup_off_image", { barcode, imageUrl, mergedFrom });
+    }
+  }
+
   logger.info("product_lookup_found", {
     barcode,
     source: product.source,
