@@ -1,0 +1,54 @@
+# Render Blueprint for FoodGaurd AI
+# Deploy: on dashboard.render.com -> New -> Blueprint -> select the repo.
+# Wires up the web service + managed PostgreSQL + env vars automatically.
+
+services:
+  - type: web
+    name: foodgaurd
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npx prisma migrate deploy && npm run build
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: foodgaurd-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: MAX_REQUEST_BODY_MB
+        value: "8"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "120"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: DEMO_ADMIN_EMAIL
+        value: admin@foodgaurd.app
+      - key: DEMO_ADMIN_PASSWORD
+        sync: false
+      - key: DEMO_USER_EMAIL
+        value: user@foodgaurd.app
+      - key: DEMO_USER_PASSWORD
+        sync: false
+      - key: FSSAI_INFORMATIONAL_URL
+        value: https://www.fssai.gov.in
+      # Providers default to offline/mock so the app works with zero extra keys.
+      - key: AI_PROVIDER
+        value: mock
+      - key: OCR_PROVIDER
+        value: mock
+      - key: PRODUCT_DATA_PROVIDER
+        value: mock
+      - key: EVIDENCE_PROVIDER
+        value: curated
+
+databases:
+  - name: foodgaurd-db
+    plan: free
+    databaseName: foodgaurdDb
