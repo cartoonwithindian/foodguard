@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { ArrowLeft, Clock } from "lucide-react";
 import Link from "next/link";
 import type { ProductCategory } from "@/data/mock-data";
@@ -24,6 +27,13 @@ export function ProductHeader({
   backButton,
   scanDateLabel,
 }: ProductHeaderProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join("");
   return (
     <div className="flex flex-col gap-4">
       <Link
@@ -34,16 +44,20 @@ export function ProductHeader({
         {backButton}
       </Link>
       <div className="flex gap-4">
-        {imageUrl && (
-          <div className="size-20 shrink-0 rounded-2xl bg-muted flex items-center justify-center overflow-hidden">
-            
+        <div className="size-20 shrink-0 rounded-2xl bg-muted flex items-center justify-center overflow-hidden">
+          {imageUrl && !imageFailed ? (
             <img
               src={imageUrl}
               alt={name}
               className="size-full object-cover"
+              onError={() => setImageFailed(true)}
             />
-          </div>
-        )}
+          ) : (
+            <span className="text-lg font-semibold text-muted-foreground">
+              {initials || "?"}
+            </span>
+          )}
+        </div>
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-bold text-foreground">{name}</h1>
           <p className="text-sm text-muted-foreground">
