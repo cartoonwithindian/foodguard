@@ -291,3 +291,36 @@ export function getIndianDatasetStats(): {
     barcodesIndexed: Object.keys(barcodeIndex!).length,
   };
 }
+
+// ── Catalog listing ──────────────────────────────────────────
+
+export type IndianCatalogEntry = {
+  product: ProductInfo;
+  /** Raw dataset category string (may be empty). */
+  category: string;
+  hasNutrition: boolean;
+  hasIngredients: boolean;
+};
+
+/**
+ * Return every product in the bundled Indian dataset as lightweight catalog
+ * entries. Used by the catalog service so empty-query browsing exposes the
+ * full offline catalog without inserting ~19k rows into the live database.
+ * Returns null (rather than an empty array) when the dataset cannot load, so
+ * callers can tell a genuine empty result from a missing file.
+ */
+export function listAllIndianProducts(): IndianCatalogEntry[] | null {
+  if (!ensureLoaded()) return null;
+
+  const entries: IndianCatalogEntry[] = new Array(products!.length);
+  for (let i = 0; i < products!.length; i++) {
+    const raw = products![i];
+    entries[i] = {
+      product: normalizeProduct(raw),
+      category: raw.c ?? "",
+      hasNutrition: raw.nut !== null && Object.keys(raw.nut).length > 0,
+      hasIngredients: raw.ig !== null && raw.ig.length > 0,
+    };
+  }
+  return entries;
+}
