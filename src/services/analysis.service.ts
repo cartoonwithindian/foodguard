@@ -14,6 +14,7 @@ import type {
 } from "@/types/domain";
 import { lookupProductByBarcode } from "@/lib/product-provider";
 import { searchIndianProducts } from "@/lib/india-dataset";
+import { fetchOffImageUrl } from "@/lib/external/off-image";
 import { parseIngredientText } from "@/lib/ingredients/parse";
 import { analyzeIngredients } from "@/services/ingredient.service";
 import { detectAllergens } from "@/lib/allergens";
@@ -276,6 +277,19 @@ export async function runAnalysis(input: AnalyzeInput): Promise<{ frontend: Fron
       product = saved.product;
       productNutrition = saved.nutrition ? normalizeNutritionFacts(saved.nutrition) : productNutrition;
       productSource = "indian_dataset";
+    }
+  }
+
+  // ── 1b. Best-effort product image (Open Food Facts, by barcode) ──
+  // The bundled Indian dataset carries no image URLs; resolve one the same
+  // way the alternatives engine does so the product result shows a real
+  // photo when OFF has one. A missing image never blocks analysis.
+  if (product && product.barcode && !product.imageUrl) {
+    try {
+      const imageUrl = await fetchOffImageUrl(product.barcode);
+      if (imageUrl) product = { ...product, imageUrl };
+    } catch {
+      // Best-effort; ignore failures.
     }
   }
 
