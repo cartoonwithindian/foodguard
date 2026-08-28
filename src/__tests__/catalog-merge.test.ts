@@ -141,6 +141,12 @@ describe("listCatalog (non-SQLite path) — India dataset merge", () => {
     expect(result.products.map((p) => p.name)).toEqual(["Kurkure Masala Munch"]);
   });
 
+  it("filters the merged India dataset by search term", async () => {
+    const result = await listCatalog({ search: "kurkure" });
+    expect(result.total).toBe(1);
+    expect(result.products.map((p) => p.name)).toEqual(["Kurkure Masala Munch"]);
+  });
+
   it("paginates and reports correct totals", async () => {
     const first = await listCatalog({ limit: 2, offset: 0 });
     expect(first.products).toHaveLength(2);

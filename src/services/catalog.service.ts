@@ -140,6 +140,14 @@ export async function listCatalog(input: CatalogFilterInput = {}): Promise<Catal
     }
   }
 
+  const searchQuery = (input.search ?? "").trim();
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    const filtered = items.filter((i) => i.name.toLowerCase().includes(q));
+    items.length = 0;
+    items.push(...filtered);
+  }
+
   if (category !== "all") {
     const filtered = items.filter((i) => i.category === category);
     items.length = 0;
