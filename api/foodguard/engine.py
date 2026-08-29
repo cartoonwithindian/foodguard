@@ -143,18 +143,42 @@ class FoodGuardEngine:
         except ImportError as exc:  # pragma: no cover - defensive
             raise PipelineError(f"ML dependencies missing: {exc}")
 
+        # Memory-conservative CPU configuration: cap intra-/inter-op threads so
+        # torch does not spawn per-core runtime workers on a RAM-limited host.
         if not torch.cuda.is_available():
-            torch.set_num_threads(os.cpu_count() or 1)
+            torch.set_num_threads(1)
+            torch.set_num_interop_threads(1)
 
         local_weights = os.getenv("FOODGUARD_LOCAL_WEIGHTS", "").strip()
+        model_source = "HUGGINGFACE_RUNTIME_DOWNLOAD"
         if local_weights:
-            self._patch_openai_download(Path(local_weights))
+            weights_path = Path(local_weights)
+            if not weights_path.is_absolute():
+                weights_path = self.settings.base_dir / weights_path
+            self._patch_openai_download(weights_path)
+            model_source = "LOCAL"
 
         self.model, _, self.preprocess = open_clip.create_model_and_transforms(
             self.settings.model_name, pretrained=self.settings.pretrained
         )
         self.model = self.model.to(self.device)
         self.model.eval()
+
+        log.info(
+            "FoodGuard visual search starting...\n"
+            "Model: %s / %s\n"
+            "Embedding dimension: %d\n"
+            "FAISS vectors: %d\n"
+            "FAISS metric: IndexFlatL2 (query normalised_L2)\n"
+            "Model source: %s\n"
+            "Hugging Face runtime download: %s",
+            self.settings.model_name,
+            self.settings.pretrained,
+            self.model.visual.output_dim,
+            self.index.ntotal if self.index is not None else 0,
+            model_source,
+            "DISABLED" if local_weights else "ENABLED",
+        )
 
     @staticmethod
     def _patch_openai_download(weights: Path):  # pragma: no cover - local only
