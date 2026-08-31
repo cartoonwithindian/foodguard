@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  searchByVector,
   searchSimilarByImage,
   visualSearchAvailable,
 } from "@/lib/visual-search";
@@ -107,6 +108,68 @@ describe("searchSimilarByImage", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.results).toEqual([]);
+  });
+});
+
+describe("searchByVector", () => {
+  const VECTOR = Array.from({ length: 512 }, (_, i) => i / 1000);
+
+  it("POSTs the raw 512-d embedding to /search_by_vector and camelCases results", async () => {
+    const fetchMock = stubVisualSearch((url, init) => {
+      expect(url).toBe(`${BASE}/api/v1/search_by_vector`);
+      expect(init.method).toBe("POST");
+      expect(init.headers).toMatchObject({ "Content-Type": "application/json" });
+      const body = JSON.parse(init.body as string);
+      expect(body.vector).toHaveLength(512);
+      expect(body.vector).toEqual(VECTOR);
+      expect(body.top_k).toBe(5);
+      return okResponse({
+        query: "vector_search",
+        results: [
+          {
+            rank: 1,
+            product_name: "Kimchi Ramyun Bowl 86G",
+            product_id: "Kimchi Ramyun Bowl 86G_10086",
+            score: 0.0001,
+            image_path: "products_images/X/1.jpg",
+          },
+        ],
+      });
+    });
+
+    const res = await searchByVector(VECTOR, 5);
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.results[0]).toEqual({
+      rank: 1,
+      productName: "Kimchi Ramyun Bowl 86G",
+      productId: "Kimchi Ramyun Bowl 86G_10086",
+      score: 0.0001,
+      imagePath: "products_images/X/1.jpg",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns serviceUnavailable on network failure", async () => {
+    stubVisualSearch(() => {
+      throw new TypeError("fetch failed");
+    });
+    const res = await searchByVector(VECTOR);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.serviceUnavailable).toBe(true);
+  });
+
+  it("returns code/message on 422 validation error", async () => {
+    stubVisualSearch(() =>
+      errResponse(422, { error: { code: "INVALID_INPUT", message: "'vector' must contain exactly 512 numbers (got 10)" } }),
+    );
+    const res = await searchByVector([1, 2, 3], 5);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.serviceUnavailable).toBe(false);
+    expect(res.code).toBe("INVALID_INPUT");
   });
 });
 

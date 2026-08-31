@@ -76,6 +76,34 @@ function camelize<T>(value: unknown): T {
   return value as unknown as T;
 }
 
+// ── Search by image embedding vector ──────────────────────────────────────
+// The CLIP embedding is produced client-side (transformers.js); the backend
+// only runs FAISS search against the 512-d IndexFlatL2 index.
+
+/**
+ * Send a raw 512-d CLIP image embedding to the visual search service and
+ * return top-K similar products. Never throws — returns `{ ok: false,
+ * serviceUnavailable: true }` when the service is down, and `{ ok: false,
+ * code, message }` on a service error response.
+ */
+export async function searchByVector(
+  vector: number[],
+  topK = 5,
+  options?: { signal?: AbortSignal },
+): Promise<VisualSearchResponse> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/search_by_vector`, {
+      method: "POST",
+      headers: { ...headers(true), "Content-Type": "application/json" },
+      body: JSON.stringify({ vector, top_k: topK }),
+      signal: options?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+    });
+    return await normalizeResponse(res);
+  } catch (error) {
+    return toUnavailable(error);
+  }
+}
+
 // ── Search by uploaded image ──────────────────────────────────────────────
 
 /**
@@ -102,45 +130,52 @@ export async function searchSimilarByImage(
       body,
       signal: options?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
     });
-
-    const text = await res.text();
-    let payload: unknown = null;
-    if (text) {
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        payload = null;
-      }
-    }
-
-    if (!res.ok) {
-      const err = (payload as { error?: { code?: string; message?: string } } | null)?.error;
-      logger.warn("visual_search_api_error", {
-        status: res.status,
-        code: err?.code,
-      });
-      return {
-        ok: false,
-        serviceUnavailable: false,
-        code: err?.code || `HTTP_${res.status}`,
-        message: err?.message || `Visual search service returned HTTP ${res.status}`,
-      };
-    }
-
-    const parsed = camelize<{ query?: string; results?: VisualSearchResult[] }>(payload ?? {});
-    return { ok: true, query: parsed.query ?? "", results: parsed.results ?? [] };
+    return await normalizeResponse(res);
   } catch (error) {
-    const isTimeout = error instanceof DOMException && error.name === "TimeoutError";
-    logger.warn("visual_search_api_unavailable", {
-      timeout: isTimeout,
-      error: String(error),
+    return toUnavailable(error);
+  }
+}
+
+async function normalizeResponse(res: Response): Promise<VisualSearchResponse> {
+  const text = await res.text();
+  let payload: unknown = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!res.ok) {
+    const err = (payload as { error?: { code?: string; message?: string } } | null)?.error;
+    logger.warn("visual_search_api_error", {
+      status: res.status,
+      code: err?.code,
     });
     return {
       ok: false,
-      serviceUnavailable: true,
-      message: isTimeout ? "Visual search service timed out" : "Visual search service is unavailable",
+      serviceUnavailable: false,
+      code: err?.code || `HTTP_${res.status}`,
+      message: err?.message || `Visual search service returned HTTP ${res.status}`,
     };
   }
+
+  const parsed = camelize<{ query?: string; results?: VisualSearchResult[] }>(payload ?? {});
+  return { ok: true, query: parsed.query ?? "", results: parsed.results ?? [] };
+}
+
+function toUnavailable(error: unknown): VisualSearchResponse {
+  const isTimeout = error instanceof DOMException && error.name === "TimeoutError";
+  logger.warn("visual_search_api_unavailable", {
+    timeout: isTimeout,
+    error: String(error),
+  });
+  return {
+    ok: false,
+    serviceUnavailable: true,
+    message: isTimeout ? "Visual search service timed out" : "Visual search service is unavailable",
+  };
 }
 
 // ── Health probe ──────────────────────────────────────────────────────────

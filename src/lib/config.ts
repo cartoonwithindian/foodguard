@@ -138,6 +138,10 @@ export const config = {
     apiUrl: process.env.VISUAL_SEARCH_API_URL || "http://127.0.0.1:8001",
     apiKey: process.env.VISUAL_SEARCH_API_KEY || "",
     timeoutMs: Number(process.env.VISUAL_SEARCH_TIMEOUT_MS || 30_000),
+    // Embed product photos in the browser (transformers.js) so the backend
+    // only runs FAISS. Disable to skip visual-similarity candidates entirely
+    // (faster scans, no ~model download on first use).
+    clientEmbed: process.env.VISUAL_SEARCH_CLIENT_EMBED !== "false",
   },
 } as const;
 

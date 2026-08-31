@@ -9,7 +9,7 @@ import { getSession } from "@/lib/auth";
 import { decodeBarcodeFromImage, validateBarcode } from "@/lib/barcode";
 import { decodeBarcodeInNode } from "@/lib/barcode/node-decoder";
 import { lookupProductByBarcode } from "@/lib/product-lookup";
-import { searchSimilarByImage } from "@/lib/visual-search";
+import { searchByVector, searchSimilarByImage } from "@/lib/visual-search";
 
 export const runtime = "nodejs";
 
@@ -34,6 +34,25 @@ export async function POST(request: NextRequest) {
       );
     }
     const image = form.get("image");
+    // Optional client-side CLIP embedding (512 floats) for visual similarity
+    // search. When present, the backend-only FAISS `search_by_vector` is used;
+    // browser embedding keeps the FastAPI service free of torch/GPU.
+    const rawEmbedding = (form.get("embedding") as string | null) ?? "";
+    let embedding: number[] | null = null;
+    if (rawEmbedding) {
+      try {
+        const parsed = JSON.parse(rawEmbedding);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === 512 &&
+          parsed.every((v) => typeof v === "number" && Number.isFinite(v))
+        ) {
+          embedding = parsed;
+        }
+      } catch {
+        embedding = null; // ignore malformed embedding; skip visual search
+      }
+    }
     const inputBarcode = (form.get("barcode") as string | null)?.trim() || undefined;
     const productName = (form.get("productName") as string | null)?.trim() || undefined;
     const detectBarcodeParam = form.get("detectBarcode") !== "false";
@@ -126,19 +145,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 1b. Visual-similarity fallback (CLIP + FAISS, best-effort). When the
-    // image has a detectable barcode but no product could be matched (or no
-    // barcode at all), ask the visual search service for top-K similar
-    // products so the caller can still suggest candidates. Never throws and
-    // never blocks the scan on an unavailable service.
+    // 1b. Visual-similarity fallback (browser CLIP embeds, backend FAISS
+    // searches). When the image has a detectable barcode but no product could
+    // be matched (or no barcode at all), ask the visual search service for
+    // top-K similar products so the caller can still suggest candidates.
+    // Never throws and never blocks the scan on an unavailable service.
     if (!productObj && blob) {
       try {
-        const vis = await searchSimilarByImage(
-          new Uint8Array(buffer),
-          "label.png",
-          mimeType,
-          5
-        );
+        const vis = embedding
+          ? await searchByVector(embedding, 5)
+          : await searchSimilarByImage(new Uint8Array(buffer), "label.png", mimeType, 5);
         if (vis.ok && vis.results.length > 0) {
           similarProducts = vis.results.slice(0, 5);
           sourcesSet.add("visual_search");

@@ -394,6 +394,20 @@ export async function resolveProductByPhoto(
     form.append("image", blob, `label.${ext}`);
     form.append("detectBarcode", "true");
 
+    // Best-effort client-side CLIP embedding so the backend can return
+    // visually-similar products via FAISS only. Never blocks the scan: any
+    // failure (model unavailable / slow / errored) just omits the vector.
+    try {
+      const { config } = await import("@/lib/config");
+      if (config.visualSearch.clientEmbed && typeof window !== "undefined") {
+        const { embedImage } = await import("@/lib/visual-embed");
+        const vector = await embedImage(blob);
+        form.append("embedding", JSON.stringify(vector));
+      }
+    } catch {
+      // ignore — visual search candidates are optional
+    }
+
     const response = await httpJson("/api/scan/label", {
       method: "POST",
       body: form,
