@@ -1,0 +1,9 @@
+# Build-time downloaded CLIP checkpoint (fetched by fetch-model.sh during the
+# Render build; NOT stored in git). Loaded locally at runtime.
+/models/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/

@@ -1,0 +1,8 @@
+# Pipeline assets are large but required at runtime; the API ships with them.
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+.pytest_cache/
+*.log

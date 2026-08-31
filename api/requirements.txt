@@ -1,0 +1,17 @@
+# FoodGuard Visual Search API — Python dependencies (CPU build for Render).
+# Pinned to the versions verified in the local runtime venv.
+# torch is pulled from the PyTorch CPU index so Render's CPU-only free tier works.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+gunicorn==26.2.0
+python-multipart==0.0.32
+pydantic==2.13.5
+pillow==12.3.0
+numpy>=1.26
+requests>=2.31
+open-clip-torch==3.3.0
+faiss-cpu==1.15.0
+torch==2.13.0
