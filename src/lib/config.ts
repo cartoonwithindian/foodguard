@@ -6,7 +6,11 @@ export const config = {
   ai: {
     provider: process.env.AI_PROVIDER || "mock",
     apiKey: process.env.AI_API_KEY || "",
-    baseUrl: process.env.AI_BASE_URL || "https://api.openai.com/v1",
+    baseUrl:
+      // Groq uses an OpenAI-compatible endpoint
+      process.env.AI_PROVIDER === "groq"
+        ? process.env.AI_BASE_URL || "https://api.groq.com/openai/v1"
+        : process.env.AI_BASE_URL || "https://api.openai.com/v1",
     model: process.env.AI_MODEL || "gpt-4o-mini",
     // Gemini-specific: some models don't support response_format JSON mode
     supportsJsonMode: process.env.AI_SUPPORTS_JSON_MODE !== "false",
@@ -112,6 +116,28 @@ export const config = {
     // General-purpose informational site — already used in seeded
     // evidence data; surfaces as a fallback link.
     informationalUrl: process.env.FSSAI_INFORMATIONAL_URL || "https://www.fssai.gov.in",
+    // Standalone FoodGuard FSSAI Regulatory API (Python/FastAPI service).
+    // The main app talks to it over HTTP for regulatory facts. Set to the
+    // deployed service URL in production. When unreachable, compliance is
+    // reported as SERVICE_UNAVAILABLE — it never crashes the analysis.
+    apiUrl: process.env.FSSAI_API_URL || "http://127.0.0.1:8000",
+    // Optional bearer token forwarded as `Authorization: Bearer <key>` when
+    // the FSSAI service has authentication enabled (FOODGUARD_API_KEY there).
+    apiKey: process.env.FSSAI_API_KEY || "",
+    // Read-only lookup requests (rules/additives/contaminants/categories/
+    // evidence) are cached for this long. Compliance results carry their own
+    // (shorter) TTL because they depend on measured amounts.
+    lookupCacheTtlSeconds: Number(process.env.FSSAI_LOOKUP_CACHE_TTL_SECONDS || 3600),
+    timeoutMs: Number(process.env.FSSAI_TIMEOUT_MS || 10_000),
+  },
+  // Standalone FoodGuard Visual Product Search API (Python/FastAPI CLIP+FAISS).
+  // The main app calls it over HTTP for visually-similar products when a
+  // scanned barcode cannot be matched. When unreachable, similar-product
+  // results are simply omitted — scanning never crashes or blocks on it.
+  visualSearch: {
+    apiUrl: process.env.VISUAL_SEARCH_API_URL || "http://127.0.0.1:8001",
+    apiKey: process.env.VISUAL_SEARCH_API_KEY || "",
+    timeoutMs: Number(process.env.VISUAL_SEARCH_TIMEOUT_MS || 30_000),
   },
 } as const;
 

@@ -56,9 +56,11 @@ export function isSupportedBarcodeFormat(formatName: string): boolean {
     upper.includes("CODE-128")
   );
 }
-
 /**
- * Decodes barcode from an image file/blob using @zxing/browser + multi-pass preprocessing retries.
+ * Server-side (Node) decode is handled by the separate server-only module
+ * `./node-decoder` (zxing-wasm + sharp) and is only wired into server entry
+ * points such as /api/scan/label. Keeping the native `sharp` dependency out of
+ * this shared module guarantees the client browser bundle never traces it.
  */
 export async function decodeBarcodeFromImage(
   imageSource: Blob | File | string

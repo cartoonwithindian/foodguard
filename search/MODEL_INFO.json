@@ -1,0 +1,41 @@
+{
+  "project": "FoodGuard",
+  "backup_type": "Final AI model and dataset assets",
+  "created_at": "2026-08-29T10:17:55.635208+00:00",
+  "pipeline": {
+    "layer_1": "Image preprocessing and quality",
+    "layer_2": "CLIP feature extraction",
+    "layer_3": "FAISS visual retrieval",
+    "layer_4": "Visual/product/brand ranking",
+    "layer_5": "Variant/size disambiguation"
+  },
+  "ocr": "Disabled / removed from final visual pipeline",
+  "clip": {
+    "embedding_dimension": 512,
+    "feature_database": "products_images_features_v2.json"
+  },
+  "faiss": {
+    "index": "products_images_faiss_index_v2.bin",
+    "vectors": 13671,
+    "dimension": 512
+  },
+  "dataset": {
+    "indexed_images": 13671
+  },
+  "verification": {
+    "layer4_top1": "99.00%",
+    "layer5_top1": "99.80%",
+    "layer5_top5": "100.00%",
+    "large_scale_test": "500 images"
+  },
+  "primary_assets": [
+    "products_layer1_quality.json",
+    "products_images_features_v2.json",
+    "products_images_faiss_index_v2.bin",
+    "foodguard_layer4_reranking_verification.json",
+    "foodguard_layer5_variant_verification.json",
+    "foodguard_500_unseen_verification.json"
+  ],
+  "raw_images": "NOT INCLUDED",
+  "note": "The products_images directory is intentionally excluded. Keep the original image dataset separately."
+}

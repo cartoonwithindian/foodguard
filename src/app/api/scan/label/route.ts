@@ -7,7 +7,9 @@ import { parseIngredientText } from "@/lib/ingredients/parse";
 import { parseNutritionTable } from "@/lib/nutrition/parse";
 import { getSession } from "@/lib/auth";
 import { decodeBarcodeFromImage, validateBarcode } from "@/lib/barcode";
+import { decodeBarcodeInNode } from "@/lib/barcode/node-decoder";
 import { lookupProductByBarcode } from "@/lib/product-lookup";
+import { searchSimilarByImage } from "@/lib/visual-search";
 
 export const runtime = "nodejs";
 
@@ -74,11 +76,19 @@ export async function POST(request: NextRequest) {
     let nutrition: Record<string, unknown> | null = null;
     let productObj: Record<string, unknown> | null = null;
     const sourcesSet = new Set<string>();
+    // Visually-similar products (CLIP + FAISS), filled in as a fallback when a
+    // barcode is present but cannot be matched to a product (or is absent).
+    let similarProducts = null;
 
     // 1. Run Barcode Detection (if not provided and requested)
     if (detectBarcodeParam && !detectedBarcodeValue) {
       try {
-        const decoded = await decodeBarcodeFromImage(blob);
+        // Server-side Node decode (zxing-wasm + sharp). decodeBarcodeInNode
+        // is server-only and never throws; falls back to the browser decoder
+        // (which returns null in Node) if unavailable.
+        const decoded =
+          (await decodeBarcodeInNode(blob as Blob)) ??
+          (await decodeBarcodeFromImage(blob));
         if (decoded && decoded.value) {
           detectedBarcodeValue = decoded.value;
           detectedBarcodeFormat = decoded.format;
@@ -113,6 +123,28 @@ export async function POST(request: NextRequest) {
           confidence: p.confidence,
         };
         sourcesSet.add(outcome.source);
+      }
+    }
+
+    // 1b. Visual-similarity fallback (CLIP + FAISS, best-effort). When the
+    // image has a detectable barcode but no product could be matched (or no
+    // barcode at all), ask the visual search service for top-K similar
+    // products so the caller can still suggest candidates. Never throws and
+    // never blocks the scan on an unavailable service.
+    if (!productObj && blob) {
+      try {
+        const vis = await searchSimilarByImage(
+          new Uint8Array(buffer),
+          "label.png",
+          mimeType,
+          5
+        );
+        if (vis.ok && vis.results.length > 0) {
+          similarProducts = vis.results.slice(0, 5);
+          sourcesSet.add("visual_search");
+        }
+      } catch (visErr) {
+        console.error("[LabelRoute] Visual search error:", visErr);
       }
     }
 
@@ -169,6 +201,7 @@ export async function POST(request: NextRequest) {
         ingredients,
         nutrition,
         product: productObj,
+        similarProducts,
         sources: Array.from(sourcesSet),
         productName: productName ?? null,
         // Legacy fields for backward compatibility
