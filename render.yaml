@@ -48,6 +48,26 @@ services:
       - key: EVIDENCE_PROVIDER
         value: curated
 
+  # Visual Product Search API (FastAPI + CLIP + FAISS) — fallback used by the
+  # scan/label route when a barcode cannot be matched. Runs as its own service
+  # so the heavy ML runtime doesn't compete with the main Node web process.
+  - type: web
+    name: foodgaurd-visual-search
+    runtime: docker
+    plan: free
+    rootDir: visual-search-api
+    healthCheckPath: /health
+    envVars:
+      # Comma-separated list of origins allowed to call /api/v1/search.
+      # Leave empty to allow all (public read-only search).
+      - key: ALLOWED_ORIGINS
+        value: ""
+      # Optional bearer token. When set, requests need `Authorization: Bearer`.
+      - key: FOODGUARD_API_KEY
+        sync: false
+      - key: VISUAL_MAX_IMAGE_BYTES
+        value: "20971520"
+
 databases:
   - name: foodgaurd-db
     plan: free
