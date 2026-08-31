@@ -1,32 +1,33 @@
-"""CLIP + FAISS visual search runtime, loaded once at startup."""
+"""FAISS visual search runtime for vector queries, loaded once at startup.
+
+The CLIP embedding model runs in the client (transformers.js in the browser).
+This backend only needs the prebuilt FAISS index (IndexFlatL2) plus the
+product records: it accepts a 512-d embedding vector and returns top-K
+visually-similar products using plain Euclidean distance.
+"""
 from __future__ import annotations
 
+import json
 import logging
 import re
-from io import BytesIO
 from pathlib import Path
 
 import faiss
 import numpy as np
-import open_clip
-import requests
-import torch
-from PIL import Image
 
 from . import config
 
 logger = logging.getLogger("foodguard.visualsearch")
 
+FLOAT_DTYPE = np.float32
+
 
 class SearchRuntime:
-    """Loads the CLIP model and FAISS index once, then serves searches."""
+    """Loads the FAISS index and records once, then serves vector searches."""
 
     def __init__(self) -> None:
-        self.device = config.DEVICE
         self._index: faiss.Index | None = None
         self._records: list[dict] = []
-        self._model = None
-        self._preprocess = None
 
     @property
     def ready(self) -> bool:
@@ -47,30 +48,13 @@ class SearchRuntime:
         logger.info("Loaded %s vectors (dim %s)", self._index.ntotal, self._index.d)
 
         with open(config.FEATURES_FILE, "r", encoding="utf-8") as f:
-            self._records = list(__import__("json").load(f))
+            self._records = list(json.load(f))
         logger.info("Loaded %s product records", len(self._records))
 
-        logger.info("Loading CLIP model (%s) on %s", "ViT-B-32", self.device.upper())
-        self._model, _, self._preprocess = open_clip.create_model_and_transforms(
-            "ViT-B-32", pretrained="openai"
-        )
-        self._model = self._model.to(self.device)
-        self._model.eval()
-        logger.info("CLIP loaded successfully")
-
-    # ── Image loading ──────────────────────────────────────────────────────
-
-    @staticmethod
-    def load_image_bytes(data: bytes) -> Image.Image:
-        img = Image.open(BytesIO(data))
-        return img.convert("RGB")
-
-    @staticmethod
-    def load_image_url(url: str) -> Image.Image:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        with requests.get(url, headers=headers, timeout=30) as resp:
-            resp.raise_for_status()
-            return SearchRuntime.load_image_bytes(resp.content)
+        if self._index.d != config.EMBED_DIM:
+            raise RuntimeError(
+                f"FAISS index dim {self._index.d} != expected {config.EMBED_DIM}"
+            )
 
     # ── Product names ──────────────────────────────────────────────────────
 
@@ -85,25 +69,25 @@ class SearchRuntime:
 
     # ── Search ─────────────────────────────────────────────────────────────
 
-    def search_bytes(self, data: bytes, top_k: int = 5) -> list[dict]:
+    def search_vector(self, vector, top_k: int = 5) -> list[dict]:
+        """Return top-K products for a raw 512-d embedding vector.
+
+        `vector` must be a sequence of length EMBED_DIM containing finite
+        numbers. It is used directly (NOT L2-normalized) to match the raw
+        open_clip outputs stored in the IndexFlatL2 index, matching Euclidean
+        distance semantics.
+        """
         if not self.ready:
             raise RuntimeError("visual search runtime not loaded")
-        return self._search(self.load_image_bytes(data), top_k)
 
-    def search_url(self, url: str, top_k: int = 5) -> list[dict]:
-        if not self.ready:
-            raise RuntimeError("visual search runtime not loaded")
-        return self._search(self.load_image_url(url), top_k)
+        arr = np.asarray(vector, dtype=FLOAT_DTYPE)
+        if arr.shape != (config.EMBED_DIM,):
+            raise ValueError(
+                f"expected embedding of length {config.EMBED_DIM}, got shape {arr.shape}"
+            )
+        query = np.ascontiguousarray(arr.reshape(1, -1))
 
-    def _search(self, img: Image.Image, top_k: int) -> list[dict]:
-        assert self._model is not None and self._preprocess is not None and self._index is not None
-        tensor = self._preprocess(img).unsqueeze(0).to(self.device)
-
-        with torch.inference_mode():
-            features = self._model.encode_image(tensor).detach().cpu().numpy()
-
-        vector = np.ascontiguousarray(features.astype("float32"))
-        distances, indices = self._index.search(vector, top_k)
+        distances, indices = self._index.search(query, top_k)
 
         results = []
         for rank, (score, idx) in enumerate(zip(distances[0], indices[0]), start=1):

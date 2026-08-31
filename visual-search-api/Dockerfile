@@ -8,11 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     ALLOWED_ORIGINS="" \
     PORT=8001
 
-# System libs required by torch / faiss / Pillow / CLIP image decoding.
+# System libs required by faiss (OpenMP).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
-    libgl1 \
-    libglib2.0-0 \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download the CLIP + FAISS runtime assets once at build time so the image is
+# Download the FAISS runtime assets once at build time so the image is
 # self-contained and boots without a network round-trip. Assets mirror the
 # ones hosted at https://huggingface.co/nazimtovo/foodguard-assets.
 RUN mkdir -p /srv/app/assets && \
@@ -37,7 +35,7 @@ COPY app ./app
 
 EXPOSE 8001
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5).status==200 else sys.exit(1)" || exit 1
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
