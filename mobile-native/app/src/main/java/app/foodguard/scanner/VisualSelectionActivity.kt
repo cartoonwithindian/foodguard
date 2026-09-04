@@ -4,16 +4,20 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.Window
+import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.util.Log
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 
 /**
@@ -49,6 +53,19 @@ class VisualSelectionActivity : Activity() {
         // IMPORTANT: do NOT use FLAG_FULLSCREEN / immersive mode here. That would
         // hide the Android status bar (battery, time, Wi-Fi/network icons). Keep
         // the system bars visible so FoodGuard behaves like a normal app.
+
+        // This screen shows a dimmed, frozen screenshot behind a selection scrim,
+        // so the area around the system bars is DARK. Keep the bars transparent so
+        // the dimmed capture shows through, with LIGHT (white) icons so they stay
+        // visible on the dark surface. (On the light Main screen the icons are dark.)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false    // light status-bar icons on dark surface
+            isAppearanceLightNavigationBars = false // light nav-bar icons on dark surface
+        }
 
         if (ScreenshotShare.isReady) {
             Log.d(TAG, "Accessibility capture service ready — capturing frame")

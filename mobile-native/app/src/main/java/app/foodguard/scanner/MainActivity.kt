@@ -41,18 +41,18 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Keep the app laid out below/above the system bars so content never
-        // overlaps them (window fits the system windows = no drawing under the
-        // status bar, no clipping behind the gesture pill).
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // On Android 15+/16 (API 35/36, targetSdk 36) edge-to-edge is enforced:
+        // setDecorFitsSystemWindows(true) is ignored and the WebView draws under
+        // the system bars. Declare edge-to-edge explicitly so the WebView
+        // receives the real system-bar insets, which we then apply as padding
+        // (below) so content starts BELOW the status bar and clears the gesture pill.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
 
-        // The app uses a LIGHT background, so paint the system bars a solid LIGHT
-        // color and request DARK icons. A solid light bar + isAppearanceLight*
-        // = true is the reliable combination that makes the framework render
-        // dark (readable) icons. (A transparent bar sometimes makes the system
-        // fall back to light/white icons, which is why the previous build looked
-        // invisible on the light background.)
+        // The app uses a LIGHT background, so request DARK icons so the time,
+        // battery, Wi-Fi and network indicators are clearly visible. On older
+        // Android versions (where edge-to-edge is not enforced) also paint the
+        // bars a solid LIGHT color so the dark icons sit on a readable surface.
         window.statusBarColor = Color.WHITE
         window.navigationBarColor = Color.WHITE
         WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -111,11 +111,11 @@ class MainActivity : Activity() {
 
         setContentView(webView)
 
-        // Create a small gap between the system bars and the app content so
-        // nothing crowds the status bar or gesture pill. The WebView is padded
-        // from WindowInsets-derived system-bar insets (0 here when the decor
-        // already fits the system windows) plus a small fixed gap, so it adapts
-        // to any screen / orientation without hardcoded coordinates.
+        // Edge-to-edge is in effect (enforced on API 35/36), so the WebView
+        // draws under the system bars. Pad it by the real system-bar insets plus
+        // a small gap so the app header/content start BELOW the status bar (never
+        // underneath it) and the bottom clears the gesture/nav bar. Values come
+        // from WindowInsets, so they adapt to any screen, notch, or orientation.
         val gapPx = (8 * resources.displayMetrics.density).toInt()
         ViewCompat.setOnApplyWindowInsetsListener(webView) { v, insets ->
             val bars: Insets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
