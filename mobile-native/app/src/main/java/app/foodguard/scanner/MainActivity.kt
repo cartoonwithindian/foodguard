@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Base64
 import android.view.KeyEvent
@@ -19,6 +20,11 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -35,14 +41,24 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Behave like a normal Android app: keep the system status bar and
-        // navigation bar visible (battery, time, Wi-Fi, gesture bar) and lay the
-        // WebView out below/above them, rather than drawing under the bars.
-        // On Android 15+ (targetSdk 36) edge-to-edge is enforced by default, so
-        // opt out explicitly so content never hides or overlaps the system bars.
-        window.setDecorFitsSystemWindows(true)
+        // Keep the app laid out below/above the system bars so content never
+        // overlaps them (window fits the system windows = no drawing under the
+        // status bar, no clipping behind the gesture pill).
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        window.statusBarColor = 0xFF2E7D32.toInt()
+
+        // The app uses a LIGHT background, so paint the system bars a solid LIGHT
+        // color and request DARK icons. A solid light bar + isAppearanceLight*
+        // = true is the reliable combination that makes the framework render
+        // dark (readable) icons. (A transparent bar sometimes makes the system
+        // fall back to light/white icons, which is why the previous build looked
+        // invisible on the light background.)
+        window.statusBarColor = Color.WHITE
+        window.navigationBarColor = Color.WHITE
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true    // DARK status-bar icons (time/battery/Wi-Fi/net)
+            isAppearanceLightNavigationBars = true // DARK nav-bar icons
+        }
 
         intent.getStringExtra(EXTRA_IMAGE_PATH)?.let { path ->
             pendingImageDataUrl = fileToBase64DataUrl(File(path))
@@ -94,6 +110,19 @@ class MainActivity : Activity() {
         }
 
         setContentView(webView)
+
+        // Create a small gap between the system bars and the app content so
+        // nothing crowds the status bar or gesture pill. The WebView is padded
+        // from WindowInsets-derived system-bar insets (0 here when the decor
+        // already fits the system windows) plus a small fixed gap, so it adapts
+        // to any screen / orientation without hardcoded coordinates.
+        val gapPx = (8 * resources.displayMetrics.density).toInt()
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { v, insets ->
+            val bars: Insets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(0, bars.top + gapPx, 0, bars.bottom + gapPx)
+            insets
+        }
+        ViewCompat.requestApplyInsets(webView)
 
         val progressParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
