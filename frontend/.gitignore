@@ -1,0 +1,104 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# bundled FoodGuard SQLite database (41 MB). Re-import from foodguard_final.zip
+# if a fresh checkout needs it: the app reads it via FOODGUARD_DB_PATH.
+# SQLite doesn't persist on Render's ephemeral disk, so never ship local DB
+# files in the repo.
+/data/foodguard/*.db
+/data/foodguard/*.db-wal
+/data/foodguard/*.db-shm
+
+# archived bundles / local zips
+*.zip
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# downloaded OCR language data
+*.traineddata
+
+# home-directory tool caches / VM dotdirs (not part of the project)
+/.npm/
+/.cache/
+/.local/
+/.nuget/
+/.dotnet/
+/.jcode/
+/.config/
+/.opencode/
+/.gemini/
+/.codeoss/
+/.claude/
+/.docker/
+
+# mobile build artifacts
+mobile/
+mobile-native/
+
+# ML training artifacts
+ml/
+data/external/
+
+# large archives / bundles
+*.zip
+*.rar
+*.tar.gz
+*.7z
+
+# temp / scratch files
+bin/phase*
+bin/result*
+bin/readmefix*
+bin/TEST_HANDOFF*
+bin/WEB_SEARCH_CONFIG*
+bin/agent.md
+
+# webpack cache
+.next/cache/
+
+# Gradle / Android
+.gradle/
+.kotlin/
