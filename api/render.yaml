@@ -1,0 +1,36 @@
+# Render Blueprint for the FoodGuard Visual Search API (Python service).
+# Deploy via Render dashboard -> New -> Blueprint -> select repo + this file,
+# or attach as a secondary service.
+
+services:
+  - type: web
+    name: foodguard-api
+    runtime: python
+    plan: free
+    rootDir: api
+    buildCommand: pip install -r requirements.txt && bash fetch-model.sh
+    startCommand: gunicorn main:app -c gunicorn.conf.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: PORT
+        value: 10000
+      - key: FOODGUARD_MODEL_NAME
+        value: ViT-B-32
+      - key: FOODGUARD_LOCAL_WEIGHTS
+        value: models/ViT-B-32.pt
+      - key: FOODGUARD_PRETRAINED
+        value: openai
+      - key: FOODGUARD_TOP_K
+        value: "20"
+      - key: FOODGUARD_FINAL_K
+        value: "10"
+      - key: FOODGUARD_MAX_IMAGE_MB
+        value: "8"
+      - key: FOODGUARD_ALLOWED_ORIGINS
+        value: "*"
+      - key: FOODGUARD_BLOCK_PRIVATE
+        value: "true"
+      - key: LOG_LEVEL
+        value: INFO
